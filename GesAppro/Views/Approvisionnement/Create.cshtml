@@ -1,0 +1,258 @@
+@using Models
+@model Models.Approvisionnement
+
+@{
+    ViewData["Title"] = "Nouvel approvisionnement";
+    
+    // Initialiser la liste des articles
+    var articlesList = Model.ApprovisionnementArticles ?? new List<ApprovisionnementArticle>();
+    if (!articlesList.Any())
+    {
+        articlesList.Add(new ApprovisionnementArticle());
+    }
+    
+    // Calculer les totaux
+    decimal totalGeneral = 0;
+    foreach (var article in articlesList)
+    {
+        if (article.Quantite > 0 && article.PrixUnitaire > 0)
+        {
+            article.MontantTotal = article.Quantite * article.PrixUnitaire;
+            totalGeneral += article.MontantTotal;
+        }
+    }
+}
+
+<div class="container-fluid">
+    <div class="page-header">
+        <div class="container-fluid px-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1 class="h3 mb-0">Nouvel approvisionnement</h1>
+                <a asp-action="Index" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-left me-2"></i>Retour à la liste
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid px-4">
+        <form asp-action="Create" method="post">
+            <div class="row">
+                <!-- Informations générales -->
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="section-title">Informations générales</h5>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Date d'approvisionnement</label>
+                                <input asp-for="DateApprovisionnement" type="date" class="form-control" required
+                                       value="@(Model.DateApprovisionnement.ToString("yyyy-MM-dd"))">
+                                <span asp-validation-for="DateApprovisionnement" class="text-danger"></span>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Fournisseur</label>
+                                <select asp-for="FournisseurId" class="form-select" required>
+                                    <option value="">Sélectionner un fournisseur</option>
+                                    @foreach (var item in ViewBag.Fournisseurs as SelectList)
+                                    {
+                                        <option value="@item.Value">@item.Text</option>
+                                    }
+                                </select>
+                                <span asp-validation-for="FournisseurId" class="text-danger"></span>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Référence</label>
+                                <input type="text" class="form-control" value="Générée automatiquement" readonly style="background-color: #f8f9fa;">
+                                <small class="text-muted">La référence sera générée automatiquement</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Observations</label>
+                                <textarea asp-for="Observations" class="form-control" rows="4" 
+                                          placeholder="Observations ou commentaires sur cet approvisionnement"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Détails de l'approvisionnement -->
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="section-title">Détails de l'approvisionnement</h5>
+                            
+                            <!-- Articles dynamiques -->
+                            <div id="articlesContainer">
+                                @for (int i = 0; i < articlesList.Count; i++)
+                                {
+                                    var articleItem = articlesList[i];
+                                    var articleTotal = articleItem.Quantite > 0 && articleItem.PrixUnitaire > 0 
+                                        ? articleItem.Quantite * articleItem.PrixUnitaire 
+                                        : 0;
+                                    
+                                    <div class="article-row mb-3 p-3 rounded">
+                                        <div class="mb-3">
+                                            <label class="form-label">Article</label>
+                                            <select name="ApprovisionnementArticles[@i].ArticleId" class="form-select" required>
+                                                <option value="">Sélectionner un article</option>
+                                                @foreach (var item in ViewBag.Articles as SelectList)
+                                                {
+                                                    <option value="@item.Value" selected="@(item.Value == articleItem.ArticleId.ToString())">
+                                                        @item.Text
+                                                    </option>
+                                                }
+                                            </select>
+                                        </div>
+
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">Quantité</label>
+                                                <input name="ApprovisionnementArticles[@i].Quantite" 
+                                                       type="number" 
+                                                       class="form-control" 
+                                                       min="1"
+                                                       value="@(articleItem.Quantite > 0 ? articleItem.Quantite : 1)"
+                                                       required>
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">Prix unitaire (FCFA)</label>
+                                                <input name="ApprovisionnementArticles[@i].PrixUnitaire" 
+                                                       type="number" 
+                                                       step="0.01"
+                                                       min="0"
+                                                       class="form-control"
+                                                       value="@articleItem.PrixUnitaire"
+                                                       required>
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label class="form-label">Montant total (FCFA)</label>
+                                            <input type="text" 
+                                                   class="form-control" 
+                                                   value="@articleTotal.ToString("N0")" 
+                                                   readonly 
+                                                   style="background-color: #f8f9fa; font-weight: bold;">
+                                        </div>
+
+                                        @if (i > 0)
+                                        {
+                                            <div class="text-end">
+                                                <button type="submit" 
+                                                        name="action" 
+                                                        value="removeArticle_@i"
+                                                        class="btn btn-danger btn-sm">
+                                                    <i class="bi bi-trash me-1"></i>Supprimer cet article
+                                                </button>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+
+                            <button type="submit" 
+                                    name="action" 
+                                    value="addArticle"
+                                    class="btn add-article-btn w-100 mb-3">
+                                <i class="bi bi-plus-lg me-2"></i>Ajouter un autre article
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Articles ajoutés -->
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="section-title">Articles ajoutés</h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Article</th>
+                                    <th>Quantité</th>
+                                    <th>Prix unitaire</th>
+                                    <th>Montant</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @{
+                                    bool hasValidArticles = false;
+                                    for (int i = 0; i < articlesList.Count; i++)
+                                    {
+                                        var article = articlesList[i];
+                                        if (article.ArticleId > 0 && article.Quantite > 0 && article.PrixUnitaire > 0)
+                                        {
+                                            hasValidArticles = true;
+                                            var montant = article.Quantite * article.PrixUnitaire;
+                                            var articleName = "Article inconnu";
+                                            
+                                            if (ViewBag.Articles != null)
+                                            {
+                                                foreach (SelectListItem item in ViewBag.Articles)
+                                                {
+                                                    if (item.Value == article.ArticleId.ToString())
+                                                    {
+                                                        articleName = item.Text;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                            
+                                            <tr>
+                                                <td>@articleName</td>
+                                                <td>@article.Quantite</td>
+                                                <td>@article.PrixUnitaire.ToString("N0") FCFA</td>
+                                                <td>@montant.ToString("N0") FCFA</td>
+                                                <td>
+                                                    @if (i > 0)
+                                                    {
+                                                        <button type="submit" 
+                                                                name="action" 
+                                                                value="removeArticle"
+                                                                name="removeIndex" 
+                                                                value="@i"
+                                                                class="btn btn-sm btn-outline-danger">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    }
+                                    
+                                    if (!hasValidArticles)
+                                    {
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted py-4">
+                                                Aucun article ajouté
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="3" class="text-end"><strong>Total général:</strong></td>
+                                    <td><strong>@totalGeneral.ToString("N0") FCFA</strong></td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4">
+                        <a asp-action="Index" class="btn btn-outline-secondary">Annuler</a>
+                        <button type="submit" name="action" value="save" class="btn btn-primary">
+                            Enregistrer l'approvisionnement
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
