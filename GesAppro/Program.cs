@@ -1,19 +1,26 @@
-
-
-using Models;
+using Microsoft.EntityFrameworkCore;
 using Data;
 using Services;
-using Microsoft.EntityFrameworkCore;
+using Services.Impl;
+using Microsoft.Extensions.Logging; 
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configurez la journalisation
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
+builder.Logging.SetMinimumLevel(LogLevel.Information); // Définir le niveau minimum
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 
-// Configuration de DbContext sans chaîne de connexion (gérée dans OnConfiguring)
-builder.Services.AddDbContext<GesApproDbContext>();
+// Add DbContext avec MySQL
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+builder.Services.AddDbContext<GesApproDbContext>(options =>
+    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
 
-// Enregistrer les services
+// Add services
 builder.Services.AddScoped<IApprovisionnementService, ApprovisionnementService>();
 
 var app = builder.Build();
@@ -32,54 +39,53 @@ app.UseAuthorization();
 
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Approvisionnement}/{action=Index}/{id?}");
+    pattern: "{controller=Home}/{action=Index}/{id?}");
 
-// Créer la base de données si elle n'existe pas
+// Initialiser la base de données
 using (var scope = app.Services.CreateScope())
 {
-    var dbContext = scope.ServiceProvider.GetRequiredService<GesApproDbContext>();
+    var services = scope.ServiceProvider;
+    var logger = services.GetRequiredService<ILogger<Program>>(); // Obtenez un logger
+    
     try
     {
-        // Vérifier si la base de données existe
-        if (dbContext.Database.CanConnect())
+        var context = services.GetRequiredService<GesApproDbContext>();
+        
+        // Appliquer les migrations automatiquement
+        context.Database.Migrate();
+        
+        logger.LogInformation("Migrations appliquées avec succès!");
+        
+        // Ajouter des données de test si la base est vide
+        if (!context.Fournisseurs.Any())
         {
-            Console.WriteLine("Connexion à la base de données réussie!");
-            
-            // Vérifier si les tables existent, sinon les créer
-            if (!dbContext.Database.GetAppliedMigrations().Any())
-            {
-                dbContext.Database.EnsureCreated();
-                Console.WriteLine("Tables créées avec succès!");
-                
-                // Insérer des données de test
-                InsertTestData(dbContext);
-            }
+            logger.LogInformation("Ajout des fournisseurs de test...");
+            context.Fournisseurs.AddRange(
+                new Models.Fournisseur { Name = "Fournisseur A" },
+                new Models.Fournisseur { Name = "Fournisseur B" },
+                new Models.Fournisseur { Name = "Fournisseur C" }
+            );
         }
+        
+        if (!context.Articles.Any())
+        {
+            logger.LogInformation("Ajout des articles de test...");
+            context.Articles.AddRange(
+                new Models.Article { Libelle = "Article 1" },
+                new Models.Article { Libelle = "Article 2" },
+                new Models.Article { Libelle = "Article 3" },
+                new Models.Article { Libelle = "Article 4" },
+                new Models.Article { Libelle = "Article 5" }
+            );
+        }
+        
+        context.SaveChanges();
+        logger.LogInformation("Données de test ajoutées avec succès!");
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"Erreur: {ex.Message}");
-        
-        // Si la base n'existe pas, essayer de la créer
-        try
-        {
-            dbContext.Database.EnsureCreated();
-            Console.WriteLine("Base de données et tables créées!");
-            
-            // Insérer des données de test
-            InsertTestData(dbContext);
-        }
-        catch (Exception innerEx)
-        {
-            Console.WriteLine($"Erreur lors de la création: {innerEx.Message}");
-        }
+        logger.LogError(ex, "Erreur lors de l'initialisation de la base de données");
     }
-}
-
-void InsertTestData(GesApproDbContext context)
-{
-    // Vérifier si des données existent déjà
-    
 }
 
 app.Run();

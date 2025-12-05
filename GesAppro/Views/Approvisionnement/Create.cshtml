@@ -1,14 +1,20 @@
-@using Models
 @model Models.Approvisionnement
+@using System.Collections.Generic
+@using Models
 
 @{
     ViewData["Title"] = "Nouvel approvisionnement";
     
     // Initialiser la liste des articles
-    var articlesList = Model.ApprovisionnementArticles ?? new List<ApprovisionnementArticle>();
-    if (!articlesList.Any())
+    List<ApprovisionnementArticle> articlesList;
+    if (Model.ApprovisionnementArticles != null && Model.ApprovisionnementArticles.Any())
     {
-        articlesList.Add(new ApprovisionnementArticle());
+        articlesList = Model.ApprovisionnementArticles.ToList();
+    }
+    else
+    {
+        articlesList = new List<ApprovisionnementArticle>();
+        articlesList.Add(new ApprovisionnementArticle { Quantite = 1, PrixUnitaire = 0, Montant = 0, ArticleId = 0 });
     }
     
     // Calculer les totaux
@@ -17,8 +23,8 @@
     {
         if (article.Quantite > 0 && article.PrixUnitaire > 0)
         {
-            article.MontantTotal = article.Quantite * article.PrixUnitaire;
-            totalGeneral += article.MontantTotal;
+            article.Montant = article.Quantite * article.PrixUnitaire;
+            totalGeneral += article.Montant;
         }
     }
 }
@@ -36,6 +42,30 @@
     </div>
 
     <div class="container-fluid px-4">
+        <!-- Messages d'erreur -->
+        @if (!string.IsNullOrEmpty(ViewBag.ErrorMessage))
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle me-2"></i> @ViewBag.ErrorMessage
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+        
+        <!-- Messages de validation -->
+        @if (!ViewData.ModelState.IsValid)
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <h6 class="alert-heading mb-2"><i class="bi bi-exclamation-triangle me-2"></i>Erreurs de validation :</h6>
+                <ul class="mb-0 ps-3">
+                    @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+                    {
+                        <li>@error.ErrorMessage</li>
+                    }
+                </ul>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
         <form asp-action="Create" method="post">
             <div class="row">
                 <!-- Informations générales -->
@@ -45,19 +75,26 @@
                             <h5 class="section-title">Informations générales</h5>
                             
                             <div class="mb-3">
-                                <label class="form-label">Date d'approvisionnement</label>
+                                <label asp-for="DateApprovisionnement" class="form-label">Date d'approvisionnement</label>
                                 <input asp-for="DateApprovisionnement" type="date" class="form-control" required
                                        value="@(Model.DateApprovisionnement.ToString("yyyy-MM-dd"))">
                                 <span asp-validation-for="DateApprovisionnement" class="text-danger"></span>
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label">Fournisseur</label>
+                                <label asp-for="FournisseurId" class="form-label">Fournisseur</label>
                                 <select asp-for="FournisseurId" class="form-select" required>
                                     <option value="">Sélectionner un fournisseur</option>
-                                    @foreach (var item in ViewBag.Fournisseurs as SelectList)
+                                    @if (ViewBag.Fournisseurs != null)
                                     {
-                                        <option value="@item.Value">@item.Text</option>
+                                        var fournisseursList = ViewBag.Fournisseurs as SelectList;
+                                        if (fournisseursList != null)
+                                        {
+                                            @foreach (var item in fournisseursList)
+                                            {
+                                                <option value="@item.Value">@item.Text</option>
+                                            }
+                                        }
                                     }
                                 </select>
                                 <span asp-validation-for="FournisseurId" class="text-danger"></span>
@@ -70,7 +107,7 @@
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label">Observations</label>
+                                <label asp-for="Observations" class="form-label">Observations</label>
                                 <textarea asp-for="Observations" class="form-control" rows="4" 
                                           placeholder="Observations ou commentaires sur cet approvisionnement"></textarea>
                             </div>
@@ -98,11 +135,17 @@
                                             <label class="form-label">Article</label>
                                             <select name="ApprovisionnementArticles[@i].ArticleId" class="form-select" required>
                                                 <option value="">Sélectionner un article</option>
-                                                @foreach (var item in ViewBag.Articles as SelectList)
+                                                @if (ViewBag.Articles != null)
                                                 {
-                                                    <option value="@item.Value" selected="@(item.Value == articleItem.ArticleId.ToString())">
-                                                        @item.Text
-                                                    </option>
+                                                    var articlesSelectList = ViewBag.Articles as SelectList;
+                                                    if (articlesSelectList != null)
+                                                    {
+                                                        @foreach (var item in articlesSelectList)
+                                                        {
+                                                            var selected = articleItem.ArticleId > 0 && item.Value == articleItem.ArticleId.ToString();
+                                                            <option value="@item.Value" selected="@selected">@item.Text</option>
+                                                        }
+                                                    }
                                                 }
                                             </select>
                                         </div>
@@ -213,9 +256,7 @@
                                                     {
                                                         <button type="submit" 
                                                                 name="action" 
-                                                                value="removeArticle"
-                                                                name="removeIndex" 
-                                                                value="@i"
+                                                                value="removeArticle_@i"
                                                                 class="btn btn-sm btn-outline-danger">
                                                             <i class="bi bi-trash"></i>
                                                         </button>
@@ -248,7 +289,7 @@
                     <div class="d-flex justify-content-end gap-2 mt-4">
                         <a asp-action="Index" class="btn btn-outline-secondary">Annuler</a>
                         <button type="submit" name="action" value="save" class="btn btn-primary">
-                            Enregistrer l'approvisionnement
+                            <i class="bi bi-check-circle me-2"></i>Enregistrer l'approvisionnement
                         </button>
                     </div>
                 </div>

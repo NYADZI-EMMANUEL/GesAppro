@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GesAppro.Migrations
 {
     [DbContext(typeof(GesApproDbContext))]
-    [Migration("20251204151730_InitialCreate")]
+    [Migration("20251205005740_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -40,33 +40,25 @@ namespace GesAppro.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("MontantTotal")
-                        .ValueGeneratedOnAdd()
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
-                        .HasDefaultValue(0m);
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("Observations")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("varchar(1000)");
+                        .HasColumnType("longtext");
 
                     b.Property<string>("Reference")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
+                        .HasColumnType("longtext");
 
                     b.Property<string>("Statut")
                         .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)")
-                        .HasDefaultValue("En attente");
+                        .HasColumnType("longtext");
 
                     b.HasKey("Id");
 
                     b.HasIndex("FournisseurId");
 
-                    b.ToTable("approvisionnements", (string)null);
+                    b.ToTable("Approvisionnements");
                 });
 
             modelBuilder.Entity("Models.ApprovisionnementArticle", b =>
@@ -83,7 +75,7 @@ namespace GesAppro.Migrations
                     b.Property<int>("ArticleId")
                         .HasColumnType("int");
 
-                    b.Property<decimal>("MontantTotal")
+                    b.Property<decimal>("Montant")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
@@ -100,7 +92,7 @@ namespace GesAppro.Migrations
 
                     b.HasIndex("ArticleId");
 
-                    b.ToTable("approvisionnement_articles", (string)null);
+                    b.ToTable("ApprovisionnementArticles");
                 });
 
             modelBuilder.Entity("Models.Article", b =>
@@ -111,14 +103,13 @@ namespace GesAppro.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("Nom")
+                    b.Property<string>("Libelle")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
+                        .HasColumnType("longtext");
 
                     b.HasKey("Id");
 
-                    b.ToTable("articles", (string)null);
+                    b.ToTable("Articles");
                 });
 
             modelBuilder.Entity("Models.Fournisseur", b =>
@@ -129,21 +120,21 @@ namespace GesAppro.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("Nom")
+                    b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("longtext");
 
                     b.HasKey("Id");
 
-                    b.ToTable("fournisseurs", (string)null);
+                    b.ToTable("Fournisseurs");
                 });
 
             modelBuilder.Entity("Models.Approvisionnement", b =>
                 {
                     b.HasOne("Models.Fournisseur", "Fournisseur")
-                        .WithMany()
+                        .WithMany("Approvisionnements")
                         .HasForeignKey("FournisseurId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Fournisseur");
@@ -152,15 +143,15 @@ namespace GesAppro.Migrations
             modelBuilder.Entity("Models.ApprovisionnementArticle", b =>
                 {
                     b.HasOne("Models.Approvisionnement", "Approvisionnement")
-                        .WithMany("ApprovisionnementArticlesNavigation")
+                        .WithMany("ApprovisionnementArticles")
                         .HasForeignKey("ApprovisionnementId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("Models.Article", "Article")
-                        .WithMany()
+                        .WithMany("ApprovisionnementArticles")
                         .HasForeignKey("ArticleId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Approvisionnement");
@@ -170,7 +161,17 @@ namespace GesAppro.Migrations
 
             modelBuilder.Entity("Models.Approvisionnement", b =>
                 {
-                    b.Navigation("ApprovisionnementArticlesNavigation");
+                    b.Navigation("ApprovisionnementArticles");
+                });
+
+            modelBuilder.Entity("Models.Article", b =>
+                {
+                    b.Navigation("ApprovisionnementArticles");
+                });
+
+            modelBuilder.Entity("Models.Fournisseur", b =>
+                {
+                    b.Navigation("Approvisionnements");
                 });
 #pragma warning restore 612, 618
         }

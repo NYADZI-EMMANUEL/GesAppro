@@ -1,18 +1,19 @@
-using Models;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Models;
 
 namespace Services
 {
     public interface IApprovisionnementService
     {
-        Task<Approvisionnement> CreateAsync(Approvisionnement approvisionnement, List<ApprovisionnementArticle> articles);
-        Task<IEnumerable<Approvisionnement>> GetAllAsync();
-        Task<IEnumerable<Approvisionnement>> GetByDateRangeAsync(DateTime dateDebut, DateTime dateFin);
-        Task<Approvisionnement> GetByIdAsync(int id);
-        Task<(IEnumerable<Approvisionnement> Items, int TotalCount, int PageCount)> GetPaginatedAsync(
-            int page, int pageSize, DateTime? dateDebut, DateTime? dateFin,
-            string? search, int? fournisseurId, int? articleId, string? sortOrder);
+        Task<Approvisionnement?> GetByIdAsync(int id);
+        Task<List<Approvisionnement>> GetAllAsync();
+        Task<Approvisionnement> CreateAsync(Approvisionnement approvisionnement);
+        Task<Approvisionnement> UpdateAsync(Approvisionnement approvisionnement);
+        Task DeleteAsync(int id);
+        Task<List<Approvisionnement>> SearchAsync(DateTime? dateDebut, DateTime? dateFin);
+        Task<List<Fournisseur>> GetFournisseursAsync();
+        Task<List<Article>> GetArticlesAsync();
     }
 }

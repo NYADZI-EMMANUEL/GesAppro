@@ -1,12 +1,13 @@
-using Microsoft.EntityFrameworkCore;
-using Data;
-using Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging; 
+using Models;
+using Data;
 
-namespace Services
+namespace Services.Impl
 {
     public class ApprovisionnementService : IApprovisionnementService
     {
@@ -17,139 +18,197 @@ namespace Services
             _context = context;
         }
         
-        public async Task<Approvisionnement> CreateAsync(Approvisionnement approvisionnement, List<ApprovisionnementArticle> articles)
+        public async Task<Approvisionnement?> GetByIdAsync(int id)
         {
-            Console.WriteLine("=== DÉBUT CreateAsync ===");
-            Console.WriteLine($"FournisseurId: {approvisionnement.FournisseurId}");
-            Console.WriteLine($"Date: {approvisionnement.DateApprovisionnement}");
-            Console.WriteLine($"Nombre d'articles: {articles?.Count ?? 0}");
+            return await _context.Approvisionnements
+                .Include(a => a.Fournisseur)
+                .Include(a => a.ApprovisionnementArticles)
+                    .ThenInclude(aa => aa.Article)
+                .FirstOrDefaultAsync(a => a.Id == id);
+        }
+        
+        public async Task<List<Approvisionnement>> GetAllAsync()
+        {
+            return await _context.Approvisionnements
+                .Include(a => a.Fournisseur)
+                .Include(a => a.ApprovisionnementArticles)
+                .OrderByDescending(a => a.DateApprovisionnement)
+                .ToListAsync();
+        }
+        
+        // Dans ApprovisionnementService.cs
+        public async Task<Approvisionnement> CreateAsync(Approvisionnement approvisionnement)
+        {
+            // 1. Générer la référence automatiquement
+            string nouvelleReference = await GenererReferenceAutomatiqueAsync();
+            approvisionnement.Reference = nouvelleReference;
             
-            // Vérifier que le fournisseur existe
-            var fournisseurExists = await _context.Fournisseurs
-                .AnyAsync(f => f.Id == approvisionnement.FournisseurId);
-            
-            if (!fournisseurExists)
+            // 2. Calculer le montant total mais NE PAS assigner ApprovisionnementId encore
+            if (approvisionnement.ApprovisionnementArticles != null && approvisionnement.ApprovisionnementArticles.Any())
             {
-                throw new Exception($"Le fournisseur avec l'ID {approvisionnement.FournisseurId} n'existe pas.");
+                // Calculer le montant pour chaque article
+                foreach (var article in approvisionnement.ApprovisionnementArticles)
+                {
+                    // Vérifier que l'article est valide
+                    if (article.ArticleId <= 0 || article.Quantite <= 0)
+                    {
+                        continue; // Ignorer les articles invalides
+                    }
+                    
+                    article.Montant = article.Quantite * article.PrixUnitaire;
+                    // NE PAS assigner ApprovisionnementId ici ! Il est encore 0
+                }
+                
+                // Calculer le total
+                approvisionnement.MontantTotal = approvisionnement.ApprovisionnementArticles
+                    .Where(aa => aa.ArticleId > 0 && aa.Quantite > 0)
+                    .Sum(aa => aa.Montant);
+            }
+            else
+            {
+                approvisionnement.MontantTotal = 0;
             }
             
-            // Vérifier que tous les articles existent
-            foreach (var article in articles)
+            // 3. Enregistrer d'abord l'approvisionnement (sans les articles)
+            _context.Approvisionnements.Add(approvisionnement);
+            await _context.SaveChangesAsync(); // Maintenant approvisionnement.Id a une valeur!
+            
+            // 4. Maintenant assigner ApprovisionnementId aux articles et les enregistrer
+            if (approvisionnement.ApprovisionnementArticles != null)
             {
-                var articleExists = await _context.Articles
-                    .AnyAsync(a => a.Id == article.ArticleId);
-                
-                if (!articleExists)
+                foreach (var article in approvisionnement.ApprovisionnementArticles)
                 {
-                    throw new Exception($"L'article avec l'ID {article.ArticleId} n'existe pas.");
+                    // Sauter les articles invalides
+                    if (article.ArticleId <= 0 || article.Quantite <= 0)
+                        continue;
+                        
+                    // Maintenant approvisionnement.Id est disponible
+                    article.ApprovisionnementId = approvisionnement.Id;
+                    
+                    // Ajouter l'article au contexte
+                    _context.ApprovisionnementArticles.Add(article);
+                }
+                
+                // Enregistrer les articles
+                await _context.SaveChangesAsync();
+            }
+            
+            return approvisionnement;
+        }
+
+        // Méthode pour générer la référence automatiquement
+        private async Task<string> GenererReferenceAutomatiqueAsync()
+        {
+            try
+            {
+                // Récupérer la dernière référence
+                var derniereReference = await _context.Approvisionnements
+                    .OrderByDescending(a => a.Id)
+                    .Select(a => a.Reference)
+                    .FirstOrDefaultAsync();
+                
+                int prochainNumero = 1;
+                
+                if (!string.IsNullOrEmpty(derniereReference))
+                {
+                    // Extraire le numéro de la dernière référence
+                    string prefixe = "APP";
+                    
+                    if (derniereReference.StartsWith(prefixe))
+                    {
+                        // Essayer d'extraire le numéro après le préfixe
+                        string numeroStr = derniereReference.Substring(prefixe.Length);
+                        
+                        if (int.TryParse(numeroStr, out int dernierNumero))
+                        {
+                            prochainNumero = dernierNumero + 1;
+                        }
+                        else
+                        {
+                            // Si on ne peut pas parser le numéro, chercher le dernier ID
+                            var dernierId = await _context.Approvisionnements
+                                .OrderByDescending(a => a.Id)
+                                .Select(a => a.Id)
+                                .FirstOrDefaultAsync();
+                            
+                            prochainNumero = dernierId + 1;
+                        }
+                    }
+                    else
+                    {
+                        // Si la référence ne commence pas par APP, utiliser le dernier ID
+                        var dernierId = await _context.Approvisionnements
+                            .OrderByDescending(a => a.Id)
+                            .Select(a => a.Id)
+                            .FirstOrDefaultAsync();
+                        
+                        prochainNumero = dernierId + 1;
+                    }
+                }
+                else
+                {
+                    // Si aucune référence n'existe, commencer à 1
+                    prochainNumero = 1;
+                }
+                
+                // Formater la référence: APP0001, APP0002, etc.
+                return $"APP{prochainNumero:D4}";
+            }
+            catch (Exception ex)
+            {
+                
+                // Fallback: utiliser timestamp pour éviter les doublons
+                string timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
+                return $"APP-{timestamp}";
+            }
+        }
+        
+        public async Task<Approvisionnement> UpdateAsync(Approvisionnement approvisionnement)
+        {
+            // Supprimer les anciens articles
+            var existingArticles = await _context.ApprovisionnementArticles
+                .Where(aa => aa.ApprovisionnementId == approvisionnement.Id)
+                .ToListAsync();
+            _context.ApprovisionnementArticles.RemoveRange(existingArticles);
+            
+            // Recalculer le montant total
+            if (approvisionnement.ApprovisionnementArticles != null && approvisionnement.ApprovisionnementArticles.Any())
+            {
+                approvisionnement.MontantTotal = approvisionnement.ApprovisionnementArticles
+                    .Where(aa => aa.Quantite > 0 && aa.PrixUnitaire > 0)
+                    .Sum(aa => aa.Quantite * aa.PrixUnitaire);
+                    
+                // Calculer le montant pour chaque article
+                foreach (var article in approvisionnement.ApprovisionnementArticles)
+                {
+                    article.Montant = article.Quantite * article.PrixUnitaire;
+                    article.ApprovisionnementId = approvisionnement.Id;
                 }
             }
             
-            // Générer la référence
-            var year = DateTime.Now.Year;
-            var count = await _context.Approvisionnements
-                .CountAsync(a => a.DateApprovisionnement.Year == year);
-                
-            approvisionnement.Reference = $"APP-{year}-{(count + 1):D3}";
-            approvisionnement.Statut = "En attente";
-            
-            // Calculer le montant total
-            decimal montantTotal = 0;
-            foreach (var article in articles)
-            {
-                article.MontantTotal = article.Quantite * article.PrixUnitaire;
-                montantTotal += article.MontantTotal;
-            }
-            approvisionnement.MontantTotal = montantTotal;
-            
-            Console.WriteLine($"Référence générée: {approvisionnement.Reference}");
-            Console.WriteLine($"Montant total: {approvisionnement.MontantTotal}");
-            
-            // Créer un nouvel objet pour éviter les problèmes de tracking
-            var nouvelApprovisionnement = new Approvisionnement
-            {
-                Reference = approvisionnement.Reference,
-                DateApprovisionnement = approvisionnement.DateApprovisionnement,
-                FournisseurId = approvisionnement.FournisseurId,
-                Observations = approvisionnement.Observations ?? "",
-                Statut = approvisionnement.Statut,
-                MontantTotal = approvisionnement.MontantTotal
-            };
-            
-            // Ajouter l'approvisionnement
-            _context.Approvisionnements.Add(nouvelApprovisionnement);
+            _context.Approvisionnements.Update(approvisionnement);
             await _context.SaveChangesAsync();
             
-            Console.WriteLine($"✓ Approvisionnement créé avec ID: {nouvelApprovisionnement.Id}");
-            
-            // Ajouter les articles
-            foreach (var article in articles)
-            {
-                var nouvelArticle = new ApprovisionnementArticle
-                {
-                    ApprovisionnementId = nouvelApprovisionnement.Id,
-                    ArticleId = article.ArticleId,
-                    Quantite = article.Quantite,
-                    PrixUnitaire = article.PrixUnitaire,
-                    MontantTotal = article.MontantTotal
-                };
-                
-                _context.ApprovisionnementArticles.Add(nouvelArticle);
-                Console.WriteLine($"  ✓ Article ajouté: ArticleId={article.ArticleId}, Qté={article.Quantite}");
-            }
-            
-            await _context.SaveChangesAsync();
-            
-            Console.WriteLine($"✓ {articles.Count} article(s) ajouté(s)");
-            Console.WriteLine("=== FIN CreateAsync ===");
-            
-            return nouvelApprovisionnement;
-        }
-        
-        public async Task<IEnumerable<Approvisionnement>> GetAllAsync()
-        {
-            return await _context.Approvisionnements
-                .Include(a => a.Fournisseur)
-                .Include(a => a.ApprovisionnementArticlesNavigation)
-                .OrderByDescending(a => a.DateApprovisionnement)
-                .ToListAsync();
-        }
-        
-        public async Task<IEnumerable<Approvisionnement>> GetByDateRangeAsync(DateTime dateDebut, DateTime dateFin)
-        {
-            return await _context.Approvisionnements
-                .Include(a => a.Fournisseur)
-                .Include(a => a.ApprovisionnementArticlesNavigation)
-                .Where(a => a.DateApprovisionnement >= dateDebut && a.DateApprovisionnement <= dateFin)
-                .OrderByDescending(a => a.DateApprovisionnement)
-                .ToListAsync();
-        }
-        
-        public async Task<Approvisionnement> GetByIdAsync(int id)
-        {
-            var approvisionnement = await _context.Approvisionnements
-                .Include(a => a.Fournisseur)
-                .Include(a => a.ApprovisionnementArticlesNavigation)
-                .ThenInclude(aa => aa.Article)
-                .FirstOrDefaultAsync(a => a.Id == id);
-
-            if (approvisionnement == null)
-                throw new InvalidOperationException($"Approvisionnement avec l'Id {id} introuvable.");
-
             return approvisionnement;
         }
         
-        public async Task<(IEnumerable<Approvisionnement> Items, int TotalCount, int PageCount)> GetPaginatedAsync(
-            int page, int pageSize, DateTime? dateDebut, DateTime? dateFin,
-            string? search, int? fournisseurId, int? articleId, string? sortOrder)
+        public async Task DeleteAsync(int id)
         {
-            // Requête de base avec les inclusions
+            var approvisionnement = await _context.Approvisionnements.FindAsync(id);
+            if (approvisionnement != null)
+            {
+                _context.Approvisionnements.Remove(approvisionnement);
+                await _context.SaveChangesAsync();
+            }
+        }
+        
+        public async Task<List<Approvisionnement>> SearchAsync(DateTime? dateDebut, DateTime? dateFin)
+        {
             var query = _context.Approvisionnements
                 .Include(a => a.Fournisseur)
-                .Include(a => a.ApprovisionnementArticlesNavigation)
+                .Include(a => a.ApprovisionnementArticles)
                 .AsQueryable();
-            
-            // Appliquer les filtres de date
+                
             if (dateDebut.HasValue)
             {
                 query = query.Where(a => a.DateApprovisionnement >= dateDebut.Value);
@@ -160,59 +219,21 @@ namespace Services
                 query = query.Where(a => a.DateApprovisionnement <= dateFin.Value);
             }
             
-            // Appliquer le filtre de recherche
-            if (!string.IsNullOrEmpty(search))
-            {
-                query = query.Where(a => 
-                    a.Reference.Contains(search) || 
-                    (a.Observations != null && a.Observations.Contains(search)) ||
-                    (a.Fournisseur != null && a.Fournisseur.Nom.Contains(search))
-                );
-            }
-            
-            // Appliquer le filtre par fournisseur
-            if (fournisseurId.HasValue && fournisseurId.Value > 0)
-            {
-                query = query.Where(a => a.FournisseurId == fournisseurId.Value);
-            }
-            
-            // Appliquer le filtre par article
-            if (articleId.HasValue && articleId.Value > 0)
-            {
-                query = query.Where(a => a.ApprovisionnementArticlesNavigation != null &&
-                    a.ApprovisionnementArticlesNavigation.Any(aa => aa.ArticleId == articleId.Value));
-            }
-            
-            // Appliquer le tri
-            switch (sortOrder)
-            {
-                case "date_asc":
-                    query = query.OrderBy(a => a.DateApprovisionnement);
-                    break;
-                case "montant_desc":
-                    query = query.OrderByDescending(a => a.MontantTotal);
-                    break;
-                case "montant_asc":
-                    query = query.OrderBy(a => a.MontantTotal);
-                    break;
-                default: // "date_desc" ou null
-                    query = query.OrderByDescending(a => a.DateApprovisionnement);
-                    break;
-            }
-            
-            // Compter le total avant pagination
-            var totalCount = await query.CountAsync();
-            
-            // Calculer le nombre de pages
-            var pageCount = (int)Math.Ceiling((double)totalCount / pageSize);
-            
-            // Paginer les résultats
-            var items = await query
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
+            return await query.OrderByDescending(a => a.DateApprovisionnement).ToListAsync();
+        }
+        
+        public async Task<List<Fournisseur>> GetFournisseursAsync()
+        {
+            return await _context.Fournisseurs
+                .OrderBy(f => f.Name)
                 .ToListAsync();
-            
-            return (items, totalCount, pageCount);
+        }
+        
+        public async Task<List<Article>> GetArticlesAsync()
+        {
+            return await _context.Articles
+                .OrderBy(a => a.Libelle)
+                .ToListAsync();
         }
     }
 }

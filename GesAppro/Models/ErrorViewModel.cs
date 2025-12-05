@@ -1,8 +1,18 @@
-namespace GesAppro.Models;
+// namespace GesAppro.Models
+// {
+//     public class ErrorViewModel
+//     {
+//         public string? RequestId { get; set; }
 
-public class ErrorViewModel
+//         public bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
+//     }
+// }
+
+namespace GesAppro.Models
 {
-    public string? RequestId { get; set; }
-
-    public bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
+    public class ErrorViewModel
+    {
+        public string? RequestId { get; set; }
+        public bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
+    }
 }

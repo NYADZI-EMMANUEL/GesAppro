@@ -16,106 +16,106 @@ namespace GesAppro.Migrations
                 .Annotation("MySql:CharSet", "utf8mb4");
 
             migrationBuilder.CreateTable(
-                name: "articles",
+                name: "Articles",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
-                    Nom = table.Column<string>(type: "varchar(200)", maxLength: 200, nullable: false)
+                    Libelle = table.Column<string>(type: "longtext", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4")
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_articles", x => x.Id);
+                    table.PrimaryKey("PK_Articles", x => x.Id);
                 })
                 .Annotation("MySql:CharSet", "utf8mb4");
 
             migrationBuilder.CreateTable(
-                name: "fournisseurs",
+                name: "Fournisseurs",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
-                    Nom = table.Column<string>(type: "longtext", nullable: false)
+                    Name = table.Column<string>(type: "longtext", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4")
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_fournisseurs", x => x.Id);
+                    table.PrimaryKey("PK_Fournisseurs", x => x.Id);
                 })
                 .Annotation("MySql:CharSet", "utf8mb4");
 
             migrationBuilder.CreateTable(
-                name: "approvisionnements",
+                name: "Approvisionnements",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
-                    Reference = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: false)
+                    Reference = table.Column<string>(type: "longtext", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     DateApprovisionnement = table.Column<DateTime>(type: "datetime(6)", nullable: false),
-                    FournisseurId = table.Column<int>(type: "int", nullable: false),
-                    Observations = table.Column<string>(type: "varchar(1000)", maxLength: 1000, nullable: false)
+                    Observations = table.Column<string>(type: "longtext", nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    Statut = table.Column<string>(type: "varchar(50)", maxLength: 50, nullable: false, defaultValue: "En attente")
+                    Statut = table.Column<string>(type: "longtext", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    MontantTotal = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false, defaultValue: 0m)
+                    MontantTotal = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    FournisseurId = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_approvisionnements", x => x.Id);
+                    table.PrimaryKey("PK_Approvisionnements", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_approvisionnements_fournisseurs_FournisseurId",
+                        name: "FK_Approvisionnements_Fournisseurs_FournisseurId",
                         column: x => x.FournisseurId,
-                        principalTable: "fournisseurs",
+                        principalTable: "Fournisseurs",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
+                        onDelete: ReferentialAction.Cascade);
                 })
                 .Annotation("MySql:CharSet", "utf8mb4");
 
             migrationBuilder.CreateTable(
-                name: "approvisionnement_articles",
+                name: "ApprovisionnementArticles",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
-                    ApprovisionnementId = table.Column<int>(type: "int", nullable: false),
-                    ArticleId = table.Column<int>(type: "int", nullable: false),
                     Quantite = table.Column<int>(type: "int", nullable: false),
                     PrixUnitaire = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    MontantTotal = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false)
+                    Montant = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    ApprovisionnementId = table.Column<int>(type: "int", nullable: false),
+                    ArticleId = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_approvisionnement_articles", x => x.Id);
+                    table.PrimaryKey("PK_ApprovisionnementArticles", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_approvisionnement_articles_approvisionnements_Approvisionnem~",
+                        name: "FK_ApprovisionnementArticles_Approvisionnements_Approvisionneme~",
                         column: x => x.ApprovisionnementId,
-                        principalTable: "approvisionnements",
+                        principalTable: "Approvisionnements",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_approvisionnement_articles_articles_ArticleId",
+                        name: "FK_ApprovisionnementArticles_Articles_ArticleId",
                         column: x => x.ArticleId,
-                        principalTable: "articles",
+                        principalTable: "Articles",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
+                        onDelete: ReferentialAction.Cascade);
                 })
                 .Annotation("MySql:CharSet", "utf8mb4");
 
             migrationBuilder.CreateIndex(
-                name: "IX_approvisionnement_articles_ApprovisionnementId",
-                table: "approvisionnement_articles",
+                name: "IX_ApprovisionnementArticles_ApprovisionnementId",
+                table: "ApprovisionnementArticles",
                 column: "ApprovisionnementId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_approvisionnement_articles_ArticleId",
-                table: "approvisionnement_articles",
+                name: "IX_ApprovisionnementArticles_ArticleId",
+                table: "ApprovisionnementArticles",
                 column: "ArticleId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_approvisionnements_FournisseurId",
-                table: "approvisionnements",
+                name: "IX_Approvisionnements_FournisseurId",
+                table: "Approvisionnements",
                 column: "FournisseurId");
         }
 
@@ -123,16 +123,16 @@ namespace GesAppro.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "approvisionnement_articles");
+                name: "ApprovisionnementArticles");
 
             migrationBuilder.DropTable(
-                name: "approvisionnements");
+                name: "Approvisionnements");
 
             migrationBuilder.DropTable(
-                name: "articles");
+                name: "Articles");
 
             migrationBuilder.DropTable(
-                name: "fournisseurs");
+                name: "Fournisseurs");
         }
     }
 }

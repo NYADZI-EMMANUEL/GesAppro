@@ -1,15 +1,11 @@
-using System.ComponentModel.DataAnnotations;
+using System.Collections.Generic;
 
 namespace Models
 {
     public class Fournisseur
     {
-        [Key]
         public int Id { get; set; }
-        
-        [Required]
-        [Display(Name = "Nom")]
-        public string? Nom { get; set; }
-        
+        public string Name { get; set; } = string.Empty;
+        public ICollection<Approvisionnement> Approvisionnements { get; set; } = new List<Approvisionnement>();
     }
 }
